@@ -1,6 +1,6 @@
 ﻿#include "Scene.h"
 #include "ECS/Components.h"
-#include "core/ResourceManager.h"
+#include "Core/AssetManager.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -8,27 +8,21 @@ namespace Elysian
 {
     void Scene::Init()
     {
-        auto& resMgr = ResourceManager::Get();
-        Mesh* sofaMesh = resMgr.LoadMesh("../../../Assets/Models/sofa.fbx");
-        Mesh* houseMesh = resMgr.LoadMesh("../../../Assets/Models/viking_house.obj");
+        auto& assetMgr = AssetManager::Get();
+        AssetHandle sofaHandle = assetMgr.LoadMesh("../../../Assets/Models/sofa.fbx");
+        AssetHandle houseHandle = assetMgr.LoadMesh("../../../Assets/Models/viking_house.obj");
 
-        // Main mesh
+        // Sofa
         auto mainEntity = m_ECSManager.CreateEntity();
-        auto& mainTransform = m_ECSManager.AddComponent<TransformComponent>(mainEntity);
-        m_ECSManager.AddComponent<MeshComponent>(mainEntity, sofaMesh);
-        mainTransform.Scale = glm::vec3(0.5f);
-        
+        m_ECSManager.AddComponent<TransformComponent>(mainEntity);
+        auto& meshComp1 = m_ECSManager.AddComponent<MeshComponent>(mainEntity);
+        meshComp1.meshHandle = sofaHandle;
+
+        // Viking room
         auto houseEntity = m_ECSManager.CreateEntity();
-        auto& houseTransform = m_ECSManager.AddComponent<TransformComponent>(houseEntity);
-        m_ECSManager.AddComponent<MeshComponent>(houseEntity, houseMesh);
-        houseTransform.Position = glm::vec3(2.0f, 0.0f, 0.0f);
-        houseTransform.Scale = glm::vec3(0.5f);
-        
-        auto secondSofa = m_ECSManager.CreateEntity();
-        auto& sofa2Transform = m_ECSManager.AddComponent<TransformComponent>(secondSofa);
-        m_ECSManager.AddComponent<MeshComponent>(secondSofa, sofaMesh);
-        sofa2Transform.Position = glm::vec3(-2.0f, 0.0f, 0.0f);
-        sofa2Transform.Scale = glm::vec3(0.5f);
+        m_ECSManager.AddComponent<TransformComponent>(houseEntity);
+        auto& meshComp2 = m_ECSManager.AddComponent<MeshComponent>(houseEntity);
+        meshComp2.meshHandle = houseHandle;
 
         // CREATE LIGHT ENTITIES
         // Directional light

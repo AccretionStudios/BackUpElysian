@@ -1,5 +1,6 @@
 ﻿#include "MeshRenderer.h"
 #include "Core/Texture.h"
+#include "Core/AssetManager.h"
 #include "VulkanTypes.h"
 #include <stdexcept>
 #include <cstring>
@@ -425,26 +426,29 @@ namespace Elysian
         // 1. Iterate ALL entities with a MeshComponent and collect their data
         std::vector<Vertex> allVertices;
         std::vector<uint32_t> allIndices;
-
+        
+        auto& assetMgr = AssetManager::Get();
         auto view = scene->m_ECSManager.GetRegistry().view<MeshComponent>();
         for (auto entity : view)
         {
             auto& meshComp = view.get<MeshComponent>(entity);
-            if (!meshComp.mesh) continue;
+            Mesh* mesh = assetMgr.GetMesh(meshComp.meshHandle);
+            if (!mesh) {
+                std::cerr << "Warning: Entity has invalid mesh handle!" << std::endl;
+                continue;
+            }
 
-            // --- Store the offsets BEFORE we append ---
+            // Store offsets BEFORE we append
             meshComp.vertexOffset = static_cast<uint32_t>(allVertices.size());
             meshComp.indexOffset = static_cast<uint32_t>(allIndices.size());
-            meshComp.indexCount = static_cast<uint32_t>(meshComp.mesh->GetIndices().size());
+            meshComp.indexCount = static_cast<uint32_t>(mesh->GetIndices().size());
 
-            // Append raw vertex data (positions, normals, uvs, etc.)
-            const auto& vertices = meshComp.mesh->GetVertices();
+            // Append raw vertex data
+            const auto& vertices = mesh->GetVertices();
             allVertices.insert(allVertices.end(), vertices.begin(), vertices.end());
 
-            // Append indices, but RE-BASE them to fit the global buffer
-            // Example: If we already have 100 vertices, mesh's index 0 becomes 100.
-            for (uint32_t idx : meshComp.mesh->GetIndices())
-            {
+            // Append rebased indices
+            for (uint32_t idx : mesh->GetIndices()) {
                 allIndices.push_back(idx + meshComp.vertexOffset);
             }
         }

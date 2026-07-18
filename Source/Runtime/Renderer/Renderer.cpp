@@ -232,7 +232,6 @@ namespace Elysian
             {
                 auto& transform = view.get<TransformComponent>(entity);
                 auto& meshComp = view.get<MeshComponent>(entity);
-                if (!meshComp.mesh) continue;
 
                 DrawCommand cmd;
                 
