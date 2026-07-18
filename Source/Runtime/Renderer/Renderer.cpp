@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <array>
 
+#include "glm/gtc/type_ptr.hpp"
+
 namespace Elysian
 {
     void Renderer::Init(VulkanContext* context, Swapchain* swapchain, Scene* scene)
@@ -41,14 +43,16 @@ namespace Elysian
         DestroyPresentPipeline();
 
         VkDevice device = m_Context->GetDevice();
-        
-        if (m_GridPipeline) {
+
+        if (m_GridPipeline)
+        {
             vkDestroyPipeline(device, m_GridPipeline, nullptr);
         }
-        if (m_GridPipelineLayout) {
+        if (m_GridPipelineLayout)
+        {
             vkDestroyPipelineLayout(device, m_GridPipelineLayout, nullptr);
         }
-        
+
         vkDestroyDescriptorPool(device, m_LightingDescriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(device, m_GBufferDescriptorSetLayout, nullptr);
         if (m_GBufferSampler != VK_NULL_HANDLE)
@@ -165,9 +169,9 @@ namespace Elysian
         }
         lightUBO.numPointLights = pointCount;
         lightUBO.numSpotLights = spotCount;
-        
+
         lightUBO.cameraPos = scene->m_Camera.Position;
-        
+
         // Update light uniform buffer
         m_MeshRenderer.UpdateLightUniformBuffer(m_CurrentFrame, lightUBO);
 
@@ -180,6 +184,7 @@ namespace Elysian
         vkResetCommandBuffer(m_CommandBuffers[m_CurrentFrame], 0);
         VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         vkBeginCommandBuffer(m_CommandBuffers[m_CurrentFrame], &beginInfo);
+        
 
         // ========== Geometry pass ==========
         {
@@ -215,43 +220,122 @@ namespace Elysian
             VkRect2D scissor{{0, 0}, m_GBuffer.GetExtent()};
             vkCmdSetScissor(m_CommandBuffers[m_CurrentFrame], 0, 1, &scissor);
 
+            std::vector<DrawCommand> drawCommands;
+            drawCommands.reserve(256); // Reserve space to avoid re-allocations
+
+            // 2. Get the camera position for depth sorting
+            glm::vec3 camPos = scene->m_Camera.Position;
+
+            // 3. Loop through all entities with a Mesh + Transform
             auto view = scene->m_ECSManager.GetRegistry().view<TransformComponent, MeshComponent>();
             for (auto entity : view)
             {
                 auto& transform = view.get<TransformComponent>(entity);
                 auto& meshComp = view.get<MeshComponent>(entity);
-                if (!meshComp.mesh) continue;
+                if (!meshComp.mesh) continue; // Safety check
 
-                glm::mat4 model = transform.GetModelMatrix();
+                DrawCommand cmd;
+                cmd.modelMatrix = transform.GetModelMatrix();
+                cmd.indexCount = m_MeshRenderer.GetIndexCount(); // All meshes share this for now
+                cmd.indexOffset = 0;
+                cmd.vertexOffset = 0;
+
+                // --- Generate Pipeline Key (CW vs CCW) ---
+                // If scale is negative, the winding flips and we need the opposite pipeline
                 float determinant = transform.Scale.x * transform.Scale.y * transform.Scale.z;
-                VkFrontFace frontFace = (determinant < 0.0f)
-                                            ? VK_FRONT_FACE_CLOCKWISE
-                                            : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+                cmd.pipelineKey = (determinant < 0.0f) ? 1 : 0;
 
-                m_GeometryPass.Record(m_CommandBuffers[m_CurrentFrame], m_CurrentFrame,
-                                      m_MeshRenderer.GetMeshDescriptorSet(m_CurrentFrame),
-                                      m_MeshRenderer.GetVertexBuffer(), m_MeshRenderer.GetIndexBuffer(),
-                                      m_MeshRenderer.GetIndexCount(), model, frontFace);
+                // --- Generate Material Key (future proofing) ---
+                // Right now everything uses the same default textures, so MaterialKey = 0
+                cmd.materialKey = 0;
+
+                // --- Calculate Depth for sorting (optional but good practice) ---
+                cmd.depth = glm::distance(transform.Position, camPos);
+
+                drawCommands.push_back(cmd);
             }
+
+            std::sort(drawCommands.begin(), drawCommands.end(),
+                      [](const DrawCommand& a, const DrawCommand& b)
+                      {
+                          //PRIMARY SORT: Pipeline (CW vs CCW) - most expensive to change
+                          if (a.pipelineKey != b.pipelineKey) return a.pipelineKey < b.pipelineKey;
+
+                          //SECONDARY SORT: Material (Texture IDs) - expensive to change
+                          if (a.materialKey != b.materialKey) return a.materialKey < b.materialKey;
+
+                          //TERTIARY SORT: Depth (Front-to-back for opaque objects)
+                          // This keeps the depth test happy and improves early-Z rejection.
+                          return a.depth < b.depth;
+                      }
+            );
+
+            VkBuffer vertexBuffers[] = {m_MeshRenderer.GetVertexBuffer()};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(m_CommandBuffers[m_CurrentFrame], 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(m_CommandBuffers[m_CurrentFrame], m_MeshRenderer.GetIndexBuffer(), 0,
+                                 VK_INDEX_TYPE_UINT32);
+            
+            // Initialize State Cache
+            VkPipeline lastPipeline = VK_NULL_HANDLE;
+            VkDescriptorSet lastDescriptorSet = VK_NULL_HANDLE;
+            VkPipelineLayout pipelineLayout = m_GeometryPass.GetPipelineLayout();
+            
+            // Loop through sorted draw commands with state caching
+            for (const auto& cmd : drawCommands)
+            {
+                //Bind Pipeline ONLY if it changed
+                VkPipeline currentPipeline = (cmd.pipelineKey == 0)
+                                                 ? m_GeometryPass.GetPipelineCCW()
+                                                 : m_GeometryPass.GetPipelineCW();
+                if (lastPipeline != currentPipeline)
+                {
+                    vkCmdBindPipeline(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                      currentPipeline);
+                    lastPipeline = currentPipeline;
+                }
+
+                //Bind Descriptor Set ONLY if it changed (for now, same set per frame)
+                VkDescriptorSet currentSet = m_MeshRenderer.GetMeshDescriptorSet(m_CurrentFrame);
+                if (lastDescriptorSet != currentSet)
+                {
+                    vkCmdBindDescriptorSets(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipelineLayout, 0, 1, &currentSet, 0, nullptr);
+                    lastDescriptorSet = currentSet;
+                }
+
+                //Push per‑object Model Matrix (PushConstants are cheap, keep per‑object)
+                vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], pipelineLayout,
+                                   VK_SHADER_STAGE_VERTEX_BIT,
+                                   0, sizeof(glm::mat4), glm::value_ptr(cmd.modelMatrix));
+
+                //Draw
+                vkCmdDrawIndexed(m_CommandBuffers[m_CurrentFrame], cmd.indexCount, 1,
+                                 cmd.indexOffset, cmd.vertexOffset, 0);
+            }
+            
+            //Grid
+            vkCmdEndRenderPass(m_CommandBuffers[m_CurrentFrame]);
+            vkDestroyFramebuffer(m_Context->GetDevice(), gbufferFramebuffer, nullptr);
             
             vkCmdBindPipeline(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_GridPipeline);
 
-            struct GridPushConstants {
+            struct GridPushConstants
+            {
                 glm::mat4 view;
                 glm::mat4 proj;
             } pcs;
-            
+
             pcs.view = scene->m_Camera.GetViewMatrix();
-            pcs.proj = scene->m_Camera.GetProjectionMatrix((float)m_GBuffer.GetExtent().width / (float)m_GBuffer.GetExtent().height);
-            
-            vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], m_GridPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GridPushConstants), &pcs);
-            
+            pcs.proj = scene->m_Camera.GetProjectionMatrix(
+                (float)m_GBuffer.GetExtent().width / (float)m_GBuffer.GetExtent().height);
+
+            vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], m_GridPipelineLayout,
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GridPushConstants),
+                               &pcs);
+
             // Draw 1 Quad (6 Vertices) procedurally
             vkCmdDraw(m_CommandBuffers[m_CurrentFrame], 6, 1, 0, 0);
-            // ----------------------------------------------------------------
-
-            vkCmdEndRenderPass(m_CommandBuffers[m_CurrentFrame]);
-            vkDestroyFramebuffer(m_Context->GetDevice(), gbufferFramebuffer, nullptr);
         }
 
         // ========== Lighting pass ==========
@@ -685,8 +769,9 @@ namespace Elysian
                 throw std::runtime_error("Failed to create sync objects");
         }
     }
-    
-    void Renderer::CreateGridPipeline() {
+
+    void Renderer::CreateGridPipeline()
+    {
         auto vertCode = Pipeline::ReadFile("../../../Assets/Shaders/grid_vert.spv");
         auto fragCode = Pipeline::ReadFile("../../../Assets/Shaders/grid_frag.spv");
 
@@ -739,15 +824,16 @@ namespace Elysian
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE;   // Respect scene geometry depth
+        depthStencil.depthTestEnable = VK_TRUE; // Respect scene geometry depth
         depthStencil.depthWriteEnable = VK_FALSE; // Grid is translucent, don't occlude other transparents
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
         // Custom Blend Attachments configured to map safely over the GBuffer Layout
         std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachments{};
-        
+
         // 0: Albedo -> Apply Alpha Blending
-        blendAttachments[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        blendAttachments[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         blendAttachments[0].blendEnable = VK_TRUE;
         blendAttachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         blendAttachments[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -755,11 +841,11 @@ namespace Elysian
         blendAttachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         blendAttachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         blendAttachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
-        
+
         // 1: Normal -> Disable writing to not screw up G-Buffer deferred lighting
         blendAttachments[1].colorWriteMask = 0;
         blendAttachments[1].blendEnable = VK_FALSE;
-        
+
         // 2: WorldPos -> Disable writing
         blendAttachments[2].colorWriteMask = 0;
         blendAttachments[2].blendEnable = VK_FALSE;
@@ -790,7 +876,9 @@ namespace Elysian
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-        if (vkCreatePipelineLayout(m_Context->GetDevice(), &pipelineLayoutInfo, nullptr, &m_GridPipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(m_Context->GetDevice(), &pipelineLayoutInfo, nullptr, &m_GridPipelineLayout) !=
+            VK_SUCCESS)
+        {
             throw std::runtime_error("Failed to create grid pipeline layout");
         }
 
@@ -807,12 +895,14 @@ namespace Elysian
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = m_GridPipelineLayout;
-        
+
         // Using GBuffer RenderPass seamlessly!
-        pipelineInfo.renderPass = m_GBuffer.GetRenderPass(); 
+        pipelineInfo.renderPass = m_GBuffer.GetRenderPass();
         pipelineInfo.subpass = 0;
 
-        if (vkCreateGraphicsPipelines(m_Context->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_GridPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(m_Context->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                      &m_GridPipeline) != VK_SUCCESS)
+        {
             throw std::runtime_error("Failed to create grid graphics pipeline");
         }
 

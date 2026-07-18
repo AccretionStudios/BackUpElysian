@@ -15,6 +15,10 @@ namespace Elysian
         void Record(VkCommandBuffer cmdBuffer, uint32_t currentFrame, VkDescriptorSet meshDescriptorSet,
                     VkBuffer vertexBuffer, VkBuffer indexBuffer, uint32_t indexCount, const glm::mat4& model,
                     VkFrontFace frontFace);
+        
+        VkPipeline GetPipelineCCW() const { return m_PipelineCCW; }
+        VkPipeline GetPipelineCW()  const { return m_PipelineCW; }
+        VkPipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
 
     private:
         VulkanContext* m_Context = nullptr;
