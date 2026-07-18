@@ -11,21 +11,17 @@ namespace Elysian
         auto& assetMgr = AssetManager::Get();
         AssetHandle sofaHandle = assetMgr.LoadMesh("../../../Assets/Models/sofa.fbx");
         AssetHandle houseHandle = assetMgr.LoadMesh("../../../Assets/Models/viking_house.obj");
-
-        // Sofa
+        
         auto mainEntity = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(mainEntity);
         auto& meshComp1 = m_ECSManager.AddComponent<MeshComponent>(mainEntity);
         meshComp1.meshHandle = sofaHandle;
-
-        // Viking room
+        
         auto houseEntity = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(houseEntity);
         auto& meshComp2 = m_ECSManager.AddComponent<MeshComponent>(houseEntity);
         meshComp2.meshHandle = houseHandle;
-
-        // CREATE LIGHT ENTITIES
-        // Directional light
+        
         auto dirLight = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(dirLight);
         m_ECSManager.AddComponent<LightComponent>(dirLight);
@@ -35,8 +31,7 @@ namespace Elysian
         dirLightComp.intensity = 1.0f;
         auto& dirLightTrans = m_ECSManager.GetComponent<TransformComponent>(dirLight);
         dirLightTrans.Rotation = glm::vec3(60.0f, -120.0f, 0.0f); // direction = forward vector from rotation
-
-        // Point lights
+        
         auto pointLight1 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(pointLight1);
         m_ECSManager.AddComponent<LightComponent>(pointLight1);
@@ -58,8 +53,7 @@ namespace Elysian
         pl2Comp.radius = 1.0f;
         auto& pl2Trans = m_ECSManager.GetComponent<TransformComponent>(pointLight2);
         pl2Trans.Position = glm::vec3(-2.0f, -1.0f, 2.0f);
-
-        // Spot lights
+        
         auto spotLight1 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(spotLight1);
         m_ECSManager.AddComponent<LightComponent>(spotLight1);

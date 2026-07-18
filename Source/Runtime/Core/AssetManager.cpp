@@ -39,7 +39,6 @@ AssetHandle AssetManager::LoadMesh(const std::string& filepath) {
 
     // 3. Actually load the file (blocking for now, async later)
     if (!newEntry.data.LoadFromFile(filepath)) {
-        std::cerr << "[AssetManager] Failed to load mesh: " << filepath << std::endl;
         return AssetHandle(); // Invalid handle
     }
 
@@ -47,9 +46,6 @@ AssetHandle AssetManager::LoadMesh(const std::string& filepath) {
     uint32_t newIndex = static_cast<uint32_t>(m_MeshRegistry.size());
     m_MeshRegistry.push_back(std::move(newEntry));
     m_GuidToIndex[guid] = newIndex;
-
-    std::cout << "[AssetManager] Loaded mesh: " << filepath 
-              << " (Index: " << newIndex << ", Gen: 1)" << std::endl;
 
     return AssetHandle(newIndex, 1);
 }
