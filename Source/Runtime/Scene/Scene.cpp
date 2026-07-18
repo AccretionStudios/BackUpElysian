@@ -1,5 +1,6 @@
 ﻿#include "Scene.h"
 #include "ECS/Components.h"
+#include "core/ResourceManager.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -7,24 +8,27 @@ namespace Elysian
 {
     void Scene::Init()
     {
-        if (!m_Mesh.LoadFromFile("../../../Assets/Models/sofa.fbx"))
-        {
-            throw std::runtime_error("Failed to load mesh!");
-        }
+        auto& resMgr = ResourceManager::Get();
+        Mesh* sofaMesh = resMgr.LoadMesh("../../../Assets/Models/sofa.fbx");
+        Mesh* houseMesh = resMgr.LoadMesh("../../../Assets/Models/viking_house.obj");
 
         // Main mesh
-        m_MainEntity = m_ECSManager.CreateEntity();
-        auto& mainTransform = m_ECSManager.AddComponent<TransformComponent>(m_MainEntity);
-        m_ECSManager.AddComponent<MeshComponent>(m_MainEntity, &m_Mesh);
+        auto mainEntity = m_ECSManager.CreateEntity();
+        auto& mainTransform = m_ECSManager.AddComponent<TransformComponent>(mainEntity);
+        m_ECSManager.AddComponent<MeshComponent>(mainEntity, sofaMesh);
         mainTransform.Scale = glm::vec3(0.5f);
-
-        // Second mesh entity (example)
-        auto second = m_ECSManager.CreateEntity();
-        m_ECSManager.AddComponent<TransformComponent>(second);
-        m_ECSManager.AddComponent<MeshComponent>(second, &m_Mesh);
-        auto& secondTransform = m_ECSManager.GetComponent<TransformComponent>(second);
-        secondTransform.Position = glm::vec3(2.0f, 0.0f, 0.0f);
-        secondTransform.Scale = glm::vec3(0.5f);
+        
+        auto houseEntity = m_ECSManager.CreateEntity();
+        auto& houseTransform = m_ECSManager.AddComponent<TransformComponent>(houseEntity);
+        m_ECSManager.AddComponent<MeshComponent>(houseEntity, houseMesh);
+        houseTransform.Position = glm::vec3(2.0f, 0.0f, 0.0f);
+        houseTransform.Scale = glm::vec3(0.5f);
+        
+        auto secondSofa = m_ECSManager.CreateEntity();
+        auto& sofa2Transform = m_ECSManager.AddComponent<TransformComponent>(secondSofa);
+        m_ECSManager.AddComponent<MeshComponent>(secondSofa, sofaMesh);
+        sofa2Transform.Position = glm::vec3(-2.0f, 0.0f, 0.0f);
+        sofa2Transform.Scale = glm::vec3(0.5f);
 
         // CREATE LIGHT ENTITIES
         // Directional light

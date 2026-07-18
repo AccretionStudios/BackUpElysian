@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <array>
+#include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Elysian
@@ -16,7 +17,7 @@ namespace Elysian
         CreateDefaultTexture(); // Generate our white pixel before the descriptors!
         CreateMeshDescriptorSetLayout();
         CreateLightDescriptorSet();
-        CreateVertexAndIndexBuffers(scene);
+        BuildMegaBuffers(scene);
         CreateUniformBuffers();
         CreateMeshDescriptorPoolAndSets();
     }
@@ -407,14 +408,86 @@ namespace Elysian
         void* data = m_LightUniformBuffers[frameIndex].mapped;
         memcpy(data, &lightData, sizeof(LightUBO));
     }
-    
+
     void MeshRenderer::UpdateModelBuffer(uint32_t frameIndex, const std::vector<glm::mat4>& models)
     {
-        if (models.size() > MAX_ENTITIES) {
+        if (models.size() > MAX_ENTITIES)
+        {
             throw std::runtime_error("Too many entities for model buffer! Increase MAX_ENTITIES.");
         }
-    
+
         void* data = m_ModelBuffers[frameIndex].mapped;
         memcpy(data, models.data(), models.size() * sizeof(glm::mat4));
+    }
+
+    void MeshRenderer::BuildMegaBuffers(Scene* scene)
+    {
+        // 1. Iterate ALL entities with a MeshComponent and collect their data
+        std::vector<Vertex> allVertices;
+        std::vector<uint32_t> allIndices;
+
+        auto view = scene->m_ECSManager.GetRegistry().view<MeshComponent>();
+        for (auto entity : view)
+        {
+            auto& meshComp = view.get<MeshComponent>(entity);
+            if (!meshComp.mesh) continue;
+
+            // --- Store the offsets BEFORE we append ---
+            meshComp.vertexOffset = static_cast<uint32_t>(allVertices.size());
+            meshComp.indexOffset = static_cast<uint32_t>(allIndices.size());
+            meshComp.indexCount = static_cast<uint32_t>(meshComp.mesh->GetIndices().size());
+
+            // Append raw vertex data (positions, normals, uvs, etc.)
+            const auto& vertices = meshComp.mesh->GetVertices();
+            allVertices.insert(allVertices.end(), vertices.begin(), vertices.end());
+
+            // Append indices, but RE-BASE them to fit the global buffer
+            // Example: If we already have 100 vertices, mesh's index 0 becomes 100.
+            for (uint32_t idx : meshComp.mesh->GetIndices())
+            {
+                allIndices.push_back(idx + meshComp.vertexOffset);
+            }
+        }
+
+        // 2. If there are NO meshes, just bail out (or create a dummy triangle)
+        if (allVertices.empty())
+        {
+            std::cerr << "Warning: No meshes found in scene!" << std::endl;
+            return;
+        }
+
+        // 3. Create the VERTEX buffer
+        VkDeviceSize vSize = sizeof(Vertex) * allVertices.size();
+        Buffer vStaging;
+        vStaging.Create(m_Context, vSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+        vStaging.Map(m_Context);
+        memcpy(vStaging.mapped, allVertices.data(), (size_t)vSize);
+        vStaging.Unmap(m_Context);
+
+        m_VertexBuffer.Create(m_Context, vSize,
+                              VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                              VMA_MEMORY_USAGE_GPU_ONLY);
+        m_Context->CopyBuffer(vStaging.buffer, m_VertexBuffer.buffer, vSize);
+        vStaging.Destroy(m_Context);
+
+        // 4. Create the INDEX buffer
+        VkDeviceSize iSize = sizeof(uint32_t) * allIndices.size();
+        Buffer iStaging;
+        iStaging.Create(m_Context, iSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+        iStaging.Map(m_Context);
+        memcpy(iStaging.mapped, allIndices.data(), (size_t)iSize);
+        iStaging.Unmap(m_Context);
+
+        m_IndexBuffer.Create(m_Context, iSize,
+                             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                             VMA_MEMORY_USAGE_GPU_ONLY);
+        m_Context->CopyBuffer(iStaging.buffer, m_IndexBuffer.buffer, iSize);
+        iStaging.Destroy(m_Context);
+
+        // 5. Store total count for safety (not strictly needed for drawing anymore)
+        m_IndexCount = static_cast<uint32_t>(allIndices.size());
+
+        std::cout << "[MeshRenderer] Merged " << allVertices.size() << " vertices and "
+            << allIndices.size() << " indices from " << view.size() << " meshes." << std::endl;
     }
 }

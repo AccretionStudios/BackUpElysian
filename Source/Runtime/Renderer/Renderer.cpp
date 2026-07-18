@@ -221,7 +221,7 @@ namespace Elysian
             vkCmdSetScissor(m_CommandBuffers[m_CurrentFrame], 0, 1, &scissor);
 
             std::vector<DrawCommand> drawCommands;
-            std::vector<glm::mat4> modelMatrices; // NEW: separate list of matrices
+            std::vector<glm::mat4> modelMatrices;
             drawCommands.reserve(256);
             modelMatrices.reserve(256);
 
@@ -235,18 +235,15 @@ namespace Elysian
                 if (!meshComp.mesh) continue;
 
                 DrawCommand cmd;
-    
-                // Store the index where this matrix will be placed
+                
                 uint32_t matrixIndex = static_cast<uint32_t>(modelMatrices.size());
-                cmd.modelIndex = matrixIndex; // <--- STORE INDEX, NOT MATRIX
-    
-                // Add the matrix to the list
+                cmd.modelIndex = matrixIndex;
                 modelMatrices.push_back(transform.GetModelMatrix());
-    
-                cmd.indexCount = m_MeshRenderer.GetIndexCount();
-                cmd.indexOffset = 0;
-                cmd.vertexOffset = 0;
-
+                
+                cmd.indexCount = meshComp.indexCount;
+                cmd.indexOffset = meshComp.indexOffset;
+                cmd.vertexOffset = meshComp.vertexOffset;
+                
                 float determinant = transform.Scale.x * transform.Scale.y * transform.Scale.z;
                 cmd.pipelineKey = (determinant < 0.0f) ? 1 : 0;
                 cmd.materialKey = 0;
@@ -298,14 +295,10 @@ namespace Elysian
                                             pipelineLayout, 0, 1, &currentSet, 0, nullptr);
                     lastDescriptorSet = currentSet;
                 }
+                
+                vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &cmd.modelIndex);
 
-                // --- PUSH THE UINT32 INDEX (instead of mat4) ---
-                vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], pipelineLayout,
-                                   VK_SHADER_STAGE_VERTEX_BIT,
-                                   0, sizeof(uint32_t), &cmd.modelIndex); // <--- 4 BYTES
-
-                vkCmdDrawIndexed(m_CommandBuffers[m_CurrentFrame], cmd.indexCount, 1,
-                                 cmd.indexOffset, cmd.vertexOffset, 0);
+                vkCmdDrawIndexed(m_CommandBuffers[m_CurrentFrame], cmd.indexCount, 1, cmd.indexOffset, 0, 0);
             }
 
             //Grid

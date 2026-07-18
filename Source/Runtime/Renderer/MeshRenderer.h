@@ -29,6 +29,8 @@ namespace Elysian
     public:
         void Init(VulkanContext* context, Scene* scene, int maxFramesInFlight);
         void Cleanup();
+        
+        void BuildMegaBuffers(Scene* scene);
 
         void UpdateViewProjUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj);
         void UpdateLightUniformBuffer(uint32_t frameIndex, const LightUBO& lightData);

@@ -16,7 +16,7 @@ namespace Elysian
         uint32_t indexCount;
         uint32_t indexOffset;
         uint32_t vertexOffset;
-        
+
         uint64_t pipelineKey;
         uint64_t materialKey;
         float depth;
