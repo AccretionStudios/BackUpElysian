@@ -12,7 +12,8 @@ namespace Elysian
         void Init();
 
         Camera m_Camera{glm::vec3(0.0f, 0.0f, 5.0f)};
-        Mesh m_Mesh; // primary mesh asset
+        Mesh m_Mesh;
+        Mesh m_SecondMesh;
 
         ECSManager m_ECSManager;
 

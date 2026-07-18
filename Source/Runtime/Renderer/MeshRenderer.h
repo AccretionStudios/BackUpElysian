@@ -29,6 +29,8 @@ namespace Elysian
     public:
         void Init(VulkanContext* context, Scene* scene, int maxFramesInFlight);
         void Cleanup();
+        
+        void BuildMegaBuffers(Scene* scene);
 
         void UpdateViewProjUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj);
         void UpdateLightUniformBuffer(uint32_t frameIndex, const LightUBO& lightData);
@@ -41,6 +43,8 @@ namespace Elysian
         VkBuffer GetVertexBuffer() const { return m_VertexBuffer.buffer; }
         VkBuffer GetIndexBuffer() const { return m_IndexBuffer.buffer; }
         uint32_t GetIndexCount() const { return m_IndexCount; }
+        
+        void UpdateModelBuffer(uint32_t frameIndex, const std::vector<glm::mat4>& models);
 
     private:
         VulkanContext* m_Context = nullptr;
@@ -52,6 +56,8 @@ namespace Elysian
 
         std::vector<Buffer> m_UniformBuffers;
         std::vector<Buffer> m_LightUniformBuffers;
+        std::vector<Buffer> m_ModelBuffers;
+        static constexpr uint32_t MAX_ENTITIES = 2048;
 
         VkDescriptorSetLayout m_MeshDescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorPool m_MeshDescriptorPool = VK_NULL_HANDLE;

@@ -11,6 +11,17 @@
 
 namespace Elysian
 {
+    struct DrawCommand {
+        uint32_t modelIndex;
+        uint32_t indexCount;
+        uint32_t indexOffset;
+        uint32_t vertexOffset;
+
+        uint64_t pipelineKey;
+        uint64_t materialKey;
+        float depth;
+    };
+    
     class Renderer
     {
     public:

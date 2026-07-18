@@ -1,5 +1,6 @@
 ﻿#include "Scene.h"
 #include "ECS/Components.h"
+#include "Core/AssetManager.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -7,27 +8,20 @@ namespace Elysian
 {
     void Scene::Init()
     {
-        if (!m_Mesh.LoadFromFile("../../../Assets/Models/sofa.fbx"))
-        {
-            throw std::runtime_error("Failed to load mesh!");
-        }
-
-        // Main mesh
-        m_MainEntity = m_ECSManager.CreateEntity();
-        auto& mainTransform = m_ECSManager.AddComponent<TransformComponent>(m_MainEntity);
-        m_ECSManager.AddComponent<MeshComponent>(m_MainEntity, &m_Mesh);
-        mainTransform.Scale = glm::vec3(0.5f);
-
-        // Second mesh entity (example)
-        auto second = m_ECSManager.CreateEntity();
-        m_ECSManager.AddComponent<TransformComponent>(second);
-        m_ECSManager.AddComponent<MeshComponent>(second, &m_Mesh);
-        auto& secondTransform = m_ECSManager.GetComponent<TransformComponent>(second);
-        secondTransform.Position = glm::vec3(2.0f, 0.0f, 0.0f);
-        secondTransform.Scale = glm::vec3(0.5f);
-
-        // CREATE LIGHT ENTITIES
-        // Directional light
+        auto& assetMgr = AssetManager::Get();
+        AssetHandle sofaHandle = assetMgr.LoadMesh("../../../Assets/Models/sofa.fbx");
+        AssetHandle houseHandle = assetMgr.LoadMesh("../../../Assets/Models/viking_house.obj");
+        
+        auto mainEntity = m_ECSManager.CreateEntity();
+        m_ECSManager.AddComponent<TransformComponent>(mainEntity);
+        auto& meshComp1 = m_ECSManager.AddComponent<MeshComponent>(mainEntity);
+        meshComp1.meshHandle = sofaHandle;
+        
+        auto houseEntity = m_ECSManager.CreateEntity();
+        m_ECSManager.AddComponent<TransformComponent>(houseEntity);
+        auto& meshComp2 = m_ECSManager.AddComponent<MeshComponent>(houseEntity);
+        meshComp2.meshHandle = houseHandle;
+        
         auto dirLight = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(dirLight);
         m_ECSManager.AddComponent<LightComponent>(dirLight);
@@ -37,8 +31,7 @@ namespace Elysian
         dirLightComp.intensity = 1.0f;
         auto& dirLightTrans = m_ECSManager.GetComponent<TransformComponent>(dirLight);
         dirLightTrans.Rotation = glm::vec3(60.0f, -120.0f, 0.0f); // direction = forward vector from rotation
-
-        // Point lights
+        
         auto pointLight1 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(pointLight1);
         m_ECSManager.AddComponent<LightComponent>(pointLight1);
@@ -60,8 +53,7 @@ namespace Elysian
         pl2Comp.radius = 1.0f;
         auto& pl2Trans = m_ECSManager.GetComponent<TransformComponent>(pointLight2);
         pl2Trans.Position = glm::vec3(-2.0f, -1.0f, 2.0f);
-
-        // Spot lights
+        
         auto spotLight1 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(spotLight1);
         m_ECSManager.AddComponent<LightComponent>(spotLight1);
