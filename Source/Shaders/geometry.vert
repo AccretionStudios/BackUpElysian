@@ -1,13 +1,17 @@
 #version 450
 
 layout(push_constant) uniform PushConstants {
-    mat4 model;
+    uint modelIndex;
 } pc;
 
 layout(set = 0, binding = 0) uniform ViewProj {
     mat4 view;
     mat4 proj;
 } vp;
+
+layout(set = 0, binding = 3) readonly buffer ModelBuffer {
+    mat4 models[];
+} modelBuffer;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
@@ -25,7 +29,9 @@ layout(location = 4) out vec3 fragB;
 layout(location = 5) out vec3 fragN;
 
 void main() {
-    vec4 worldPos = pc.model * vec4(inPosition, 1.0);
+    mat4 model = modelBuffer.models[pc.modelIndex];
+
+    vec4 worldPos = model * vec4(inPosition, 1.0);
     gl_Position = vp.proj * vp.view * worldPos;
     
     fragColor = inColor;
@@ -33,8 +39,8 @@ void main() {
     fragUV = inUV;
 
     // --- CONSTRUCT THE TBN VECTORS ---
-    vec3 T = normalize(mat3(pc.model) * inTangent);
-    vec3 N = normalize(mat3(pc.model) * inNormal);
+    vec3 T = normalize(mat3(model) * inTangent);
+    vec3 N = normalize(mat3(model) * inNormal);
     
     // Re-orthogonalize T with respect to N (Gram-Schmidt) just to be perfectly safe
     T = normalize(T - dot(T, N) * N);

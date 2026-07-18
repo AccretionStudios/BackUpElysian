@@ -184,7 +184,7 @@ namespace Elysian
         vkResetCommandBuffer(m_CommandBuffers[m_CurrentFrame], 0);
         VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         vkBeginCommandBuffer(m_CommandBuffers[m_CurrentFrame], &beginInfo);
-        
+
 
         // ========== Geometry pass ==========
         {
@@ -221,81 +221,76 @@ namespace Elysian
             vkCmdSetScissor(m_CommandBuffers[m_CurrentFrame], 0, 1, &scissor);
 
             std::vector<DrawCommand> drawCommands;
-            drawCommands.reserve(256); // Reserve space to avoid re-allocations
+            std::vector<glm::mat4> modelMatrices; // NEW: separate list of matrices
+            drawCommands.reserve(256);
+            modelMatrices.reserve(256);
 
-            // 2. Get the camera position for depth sorting
             glm::vec3 camPos = scene->m_Camera.Position;
 
-            // 3. Loop through all entities with a Mesh + Transform
             auto view = scene->m_ECSManager.GetRegistry().view<TransformComponent, MeshComponent>();
             for (auto entity : view)
             {
                 auto& transform = view.get<TransformComponent>(entity);
                 auto& meshComp = view.get<MeshComponent>(entity);
-                if (!meshComp.mesh) continue; // Safety check
+                if (!meshComp.mesh) continue;
 
                 DrawCommand cmd;
-                cmd.modelMatrix = transform.GetModelMatrix();
-                cmd.indexCount = m_MeshRenderer.GetIndexCount(); // All meshes share this for now
+    
+                // Store the index where this matrix will be placed
+                uint32_t matrixIndex = static_cast<uint32_t>(modelMatrices.size());
+                cmd.modelIndex = matrixIndex; // <--- STORE INDEX, NOT MATRIX
+    
+                // Add the matrix to the list
+                modelMatrices.push_back(transform.GetModelMatrix());
+    
+                cmd.indexCount = m_MeshRenderer.GetIndexCount();
                 cmd.indexOffset = 0;
                 cmd.vertexOffset = 0;
 
-                // --- Generate Pipeline Key (CW vs CCW) ---
-                // If scale is negative, the winding flips and we need the opposite pipeline
                 float determinant = transform.Scale.x * transform.Scale.y * transform.Scale.z;
                 cmd.pipelineKey = (determinant < 0.0f) ? 1 : 0;
-
-                // --- Generate Material Key (future proofing) ---
-                // Right now everything uses the same default textures, so MaterialKey = 0
                 cmd.materialKey = 0;
-
-                // --- Calculate Depth for sorting (optional but good practice) ---
                 cmd.depth = glm::distance(transform.Position, camPos);
 
                 drawCommands.push_back(cmd);
             }
 
+            // --- Upload ALL model matrices to GPU in one go ---
+            m_MeshRenderer.UpdateModelBuffer(m_CurrentFrame, modelMatrices);
+
+            // Sort draw commands
             std::sort(drawCommands.begin(), drawCommands.end(),
-                      [](const DrawCommand& a, const DrawCommand& b)
-                      {
-                          //PRIMARY SORT: Pipeline (CW vs CCW) - most expensive to change
+                      [](const DrawCommand& a, const DrawCommand& b) {
                           if (a.pipelineKey != b.pipelineKey) return a.pipelineKey < b.pipelineKey;
-
-                          //SECONDARY SORT: Material (Texture IDs) - expensive to change
                           if (a.materialKey != b.materialKey) return a.materialKey < b.materialKey;
-
-                          //TERTIARY SORT: Depth (Front-to-back for opaque objects)
-                          // This keeps the depth test happy and improves early-Z rejection.
                           return a.depth < b.depth;
-                      }
-            );
+                      });
 
-            VkBuffer vertexBuffers[] = {m_MeshRenderer.GetVertexBuffer()};
-            VkDeviceSize offsets[] = {0};
+            // --- Bind vertex/index buffers (unchanged) ---
+            VkBuffer vertexBuffers[] = { m_MeshRenderer.GetVertexBuffer() };
+            VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(m_CommandBuffers[m_CurrentFrame], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(m_CommandBuffers[m_CurrentFrame], m_MeshRenderer.GetIndexBuffer(), 0,
-                                 VK_INDEX_TYPE_UINT32);
-            
-            // Initialize State Cache
+            vkCmdBindIndexBuffer(m_CommandBuffers[m_CurrentFrame], m_MeshRenderer.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+            // --- State cache ---
             VkPipeline lastPipeline = VK_NULL_HANDLE;
             VkDescriptorSet lastDescriptorSet = VK_NULL_HANDLE;
             VkPipelineLayout pipelineLayout = m_GeometryPass.GetPipelineLayout();
-            
-            // Loop through sorted draw commands with state caching
+
+            // --- Loop through sorted commands ---
             for (const auto& cmd : drawCommands)
             {
-                //Bind Pipeline ONLY if it changed
-                VkPipeline currentPipeline = (cmd.pipelineKey == 0)
-                                                 ? m_GeometryPass.GetPipelineCCW()
-                                                 : m_GeometryPass.GetPipelineCW();
+                // Bind Pipeline only if changed
+                VkPipeline currentPipeline = (cmd.pipelineKey == 0) 
+                                                ? m_GeometryPass.GetPipelineCCW() 
+                                                : m_GeometryPass.GetPipelineCW();
                 if (lastPipeline != currentPipeline)
                 {
-                    vkCmdBindPipeline(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                      currentPipeline);
+                    vkCmdBindPipeline(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, currentPipeline);
                     lastPipeline = currentPipeline;
                 }
 
-                //Bind Descriptor Set ONLY if it changed (for now, same set per frame)
+                // Bind Descriptor Set only if changed
                 VkDescriptorSet currentSet = m_MeshRenderer.GetMeshDescriptorSet(m_CurrentFrame);
                 if (lastDescriptorSet != currentSet)
                 {
@@ -304,20 +299,19 @@ namespace Elysian
                     lastDescriptorSet = currentSet;
                 }
 
-                //Push per‑object Model Matrix (PushConstants are cheap, keep per‑object)
+                // --- PUSH THE UINT32 INDEX (instead of mat4) ---
                 vkCmdPushConstants(m_CommandBuffers[m_CurrentFrame], pipelineLayout,
                                    VK_SHADER_STAGE_VERTEX_BIT,
-                                   0, sizeof(glm::mat4), glm::value_ptr(cmd.modelMatrix));
+                                   0, sizeof(uint32_t), &cmd.modelIndex); // <--- 4 BYTES
 
-                //Draw
                 vkCmdDrawIndexed(m_CommandBuffers[m_CurrentFrame], cmd.indexCount, 1,
                                  cmd.indexOffset, cmd.vertexOffset, 0);
             }
-            
+
             //Grid
             vkCmdEndRenderPass(m_CommandBuffers[m_CurrentFrame]);
             vkDestroyFramebuffer(m_Context->GetDevice(), gbufferFramebuffer, nullptr);
-            
+
             vkCmdBindPipeline(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_GridPipeline);
 
             struct GridPushConstants
