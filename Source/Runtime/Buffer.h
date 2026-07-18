@@ -54,9 +54,9 @@ namespace Elysian
 
         void Map(VulkanContext* context)
         {
-            if (!mapped)
-            {
-                vmaMapMemory(context->GetAllocator(), allocation, &mapped);
+            VkResult result = vmaMapMemory(context->GetAllocator(), allocation, &mapped);
+            if (result != VK_SUCCESS || mapped == nullptr) {
+                throw std::runtime_error("Failed to map buffer memory!");
             }
         }
 

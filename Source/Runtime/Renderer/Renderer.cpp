@@ -169,7 +169,7 @@ namespace Elysian
         lightUBO.cameraPos = scene->m_Camera.Position;
         
         // Update light uniform buffer
-        m_MeshRenderer.UpdateLightUniformBuffer(lightUBO);
+        m_MeshRenderer.UpdateLightUniformBuffer(m_CurrentFrame, lightUBO);
 
         // Update view and proj matrices
         glm::mat4 viewMat = scene->m_Camera.GetViewMatrix();
@@ -275,7 +275,7 @@ namespace Elysian
 
             vkCmdBindDescriptorSets(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_LightingPass.GetPipelineLayout(), 0, 1, &m_LightingDescriptorSet, 0, nullptr);
-            VkDescriptorSet lightSet = m_MeshRenderer.GetLightDescriptorSet();
+            VkDescriptorSet lightSet = m_MeshRenderer.GetLightDescriptorSet(m_CurrentFrame);
             vkCmdBindDescriptorSets(m_CommandBuffers[m_CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_LightingPass.GetPipelineLayout(), 1, 1, &lightSet, 0, nullptr);
 
@@ -373,8 +373,8 @@ namespace Elysian
         VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3};
         VkDescriptorPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = 1;
-        poolInfo.poolSizeCount = 1;
+        poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+        poolInfo.poolSizeCount = MAX_FRAMES_IN_FLIGHT;
         poolInfo.pPoolSizes = &poolSize;
         if (vkCreateDescriptorPool(m_Context->GetDevice(), &poolInfo, nullptr, &m_LightingDescriptorPool) != VK_SUCCESS)
             throw std::runtime_error("Failed to create lighting descriptor pool");
@@ -686,7 +686,7 @@ namespace Elysian
         }
     }
     
-        void Renderer::CreateGridPipeline() {
+    void Renderer::CreateGridPipeline() {
         auto vertCode = Pipeline::ReadFile("../../../Assets/Shaders/grid_vert.spv");
         auto fragCode = Pipeline::ReadFile("../../../Assets/Shaders/grid_frag.spv");
 

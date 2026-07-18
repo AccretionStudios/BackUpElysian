@@ -33,7 +33,7 @@ namespace Elysian
         vkDestroyDescriptorPool(device, m_LightDescriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(device, m_LightDescriptorSetLayout, nullptr);
 
-        m_LightUniformBuffer.Destroy(m_Context);
+        for (auto& ub : m_LightUniformBuffers) ub.Destroy(m_Context);
         for (auto& ub : m_UniformBuffers) ub.Destroy(m_Context);
 
         m_IndexBuffer.Destroy(m_Context);
@@ -247,41 +247,88 @@ namespace Elysian
 
     void MeshRenderer::CreateLightDescriptorSet()
     {
-        m_LightUniformBuffer.Create(m_Context, sizeof(LightUBO),
-                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                    VMA_MEMORY_USAGE_CPU_TO_GPU);
+        // Create per-frame uniform buffers
+        m_LightUniformBuffers.resize(m_MaxFramesInFlight);
+        for (int i = 0; i < m_MaxFramesInFlight; i++)
+        {
+            m_LightUniformBuffers[i].Create(m_Context, sizeof(LightUBO),
+                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                            VMA_MEMORY_USAGE_CPU_TO_GPU);
+        }
 
-        VkDescriptorSetLayoutBinding lightBinding = {
-            0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr
-        };
-        VkDescriptorSetLayoutCreateInfo layoutInfo = {
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, 1, &lightBinding
-        };
-        if (vkCreateDescriptorSetLayout(m_Context->GetDevice(), &layoutInfo, nullptr, &m_LightDescriptorSetLayout) !=
-            VK_SUCCESS)
-            throw std::runtime_error("Failed to create light descriptor set layout");
+        // Create descriptor set layout
+        VkDescriptorSetLayoutBinding lightBinding{};
+        lightBinding.binding = 0;
+        lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        lightBinding.descriptorCount = 1;
+        lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-        VkDescriptorPoolSize poolSize = {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1};
-        VkDescriptorPoolCreateInfo poolInfo = {
-            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &poolSize
-        };
-        if (vkCreateDescriptorPool(m_Context->GetDevice(), &poolInfo, nullptr, &m_LightDescriptorPool) != VK_SUCCESS)
-            throw std::runtime_error("Failed to create light descriptor pool");
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &lightBinding;
 
-        VkDescriptorSetAllocateInfo allocInfo = {
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, m_LightDescriptorPool, 1,
-            &m_LightDescriptorSetLayout
-        };
-        if (vkAllocateDescriptorSets(m_Context->GetDevice(), &allocInfo, &m_LightDescriptorSet) != VK_SUCCESS)
-            throw std::runtime_error("Failed to allocate light descriptor set");
+        VkResult layoutResult = vkCreateDescriptorSetLayout(m_Context->GetDevice(), &layoutInfo, nullptr,
+                                                            &m_LightDescriptorSetLayout);
+        if (layoutResult != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create light descriptor set layout: " + std::to_string(layoutResult));
+        }
 
-        VkDescriptorBufferInfo bufferInfo = {m_LightUniformBuffer.buffer, 0, sizeof(LightUBO)};
-        VkWriteDescriptorSet write = {
-            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, m_LightDescriptorSet, 0, 0, 1,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &bufferInfo, nullptr
-        };
-        vkUpdateDescriptorSets(m_Context->GetDevice(), 1, &write, 0, nullptr);
+        // Create a descriptor pool that can hold enough sets
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = m_MaxFramesInFlight; // one per frame
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.maxSets = m_MaxFramesInFlight;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+
+        VkResult poolResult =
+            vkCreateDescriptorPool(m_Context->GetDevice(), &poolInfo, nullptr, &m_LightDescriptorPool);
+        if (poolResult != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create light descriptor pool: " + std::to_string(poolResult));
+        }
+
+        // Resize the vector and allocate per-frame descriptor sets
+        m_LightDescriptorSets.resize(m_MaxFramesInFlight); // <-- CRITICAL
+
+        for (int i = 0; i < m_MaxFramesInFlight; i++)
+        {
+            VkDescriptorSetAllocateInfo allocInfo{};
+            allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            allocInfo.descriptorPool = m_LightDescriptorPool;
+            allocInfo.descriptorSetCount = 1;
+            allocInfo.pSetLayouts = &m_LightDescriptorSetLayout;
+
+            VkResult result = vkAllocateDescriptorSets(m_Context->GetDevice(), &allocInfo, &m_LightDescriptorSets[i]);
+            if (result != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate light descriptor set for frame " + std::to_string(i) +
+                    " (VkResult: " + std::to_string(result) + ")");
+            }
+
+            // Update the descriptor set with the buffer for this specific frame
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = m_LightUniformBuffers[i].buffer;
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(LightUBO);
+
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = m_LightDescriptorSets[i];
+            write.dstBinding = 0;
+            write.descriptorCount = 1;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            write.pBufferInfo = &bufferInfo;
+
+            vkUpdateDescriptorSets(m_Context->GetDevice(), 1, &write, 0, nullptr);
+        }
     }
+
 
     void MeshRenderer::UpdateViewProjUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj)
     {
@@ -295,8 +342,9 @@ namespace Elysian
         memcpy(m_UniformBuffers[frameIndex].mapped, &data, sizeof(data));
     }
 
-    void MeshRenderer::UpdateLightUniformBuffer(const LightUBO& lightData)
+    void MeshRenderer::UpdateLightUniformBuffer(uint32_t frameIndex, const LightUBO& lightData)
     {
-        memcpy(m_LightUniformBuffer.mapped, &lightData, sizeof(lightData));
+        void* data = m_LightUniformBuffers[frameIndex].mapped;
+        memcpy(data, &lightData, sizeof(LightUBO));
     }
 }

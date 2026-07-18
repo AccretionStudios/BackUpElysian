@@ -31,12 +31,12 @@ namespace Elysian
         void Cleanup();
 
         void UpdateViewProjUniformBuffer(uint32_t frameIndex, const glm::mat4& view, const glm::mat4& proj);
-        void UpdateLightUniformBuffer(const LightUBO& lightData);
+        void UpdateLightUniformBuffer(uint32_t frameIndex, const LightUBO& lightData);
 
         VkDescriptorSetLayout GetMeshDescriptorLayout() const { return m_MeshDescriptorSetLayout; }
         VkDescriptorSetLayout GetLightDescriptorLayout() const { return m_LightDescriptorSetLayout; }
         VkDescriptorSet GetMeshDescriptorSet(uint32_t frameIndex) const { return m_MeshDescriptorSets[frameIndex]; }
-        VkDescriptorSet GetLightDescriptorSet() const { return m_LightDescriptorSet; }
+        VkDescriptorSet GetLightDescriptorSet(uint32_t frameIndex) const { return m_LightDescriptorSets[frameIndex]; }
 
         VkBuffer GetVertexBuffer() const { return m_VertexBuffer.buffer; }
         VkBuffer GetIndexBuffer() const { return m_IndexBuffer.buffer; }
@@ -51,7 +51,7 @@ namespace Elysian
         uint32_t m_IndexCount = 0;
 
         std::vector<Buffer> m_UniformBuffers;
-        Buffer m_LightUniformBuffer;
+        std::vector<Buffer> m_LightUniformBuffers;
 
         VkDescriptorSetLayout m_MeshDescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorPool m_MeshDescriptorPool = VK_NULL_HANDLE;
@@ -59,7 +59,7 @@ namespace Elysian
 
         VkDescriptorSetLayout m_LightDescriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorPool m_LightDescriptorPool = VK_NULL_HANDLE;
-        VkDescriptorSet m_LightDescriptorSet;
+        std::vector<VkDescriptorSet> m_LightDescriptorSets;
 
         GPUTexture m_DefaultTexture;
         GPUTexture m_DefaultNormal;
