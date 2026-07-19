@@ -39,7 +39,7 @@ namespace Elysian
             VmaAllocationInfo allocInfoOut;
             if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &buffer, &allocation, &allocInfoOut) != VK_SUCCESS)
             {
-                throw std::runtime_error("failed to create buffer with VMA!");
+                throw std::runtime_error("Failed to create buffer with VMA");
             }
 
             if (memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU)
@@ -56,7 +56,7 @@ namespace Elysian
         {
             VkResult result = vmaMapMemory(context->GetAllocator(), allocation, &mapped);
             if (result != VK_SUCCESS || mapped == nullptr) {
-                throw std::runtime_error("Failed to map buffer memory!");
+                throw std::runtime_error("Failed to map buffer memory");
             }
         }
 

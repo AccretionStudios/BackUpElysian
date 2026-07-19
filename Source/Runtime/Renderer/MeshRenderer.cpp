@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <array>
+#include <sstream>
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -15,7 +16,7 @@ namespace Elysian
         m_Context = context;
         m_MaxFramesInFlight = maxFramesInFlight;
 
-        CreateDefaultTexture(); // Generate our white pixel before the descriptors!
+        CreateDefaultTexture();
         CreateMeshDescriptorSetLayout();
         CreateLightDescriptorSet();
         BuildMegaBuffers(scene);
@@ -45,8 +46,6 @@ namespace Elysian
 
     void MeshRenderer::CreateDefaultTexture()
     {
-        // Helper lambda to load and create textures cleanly
-        // FIX: outTex is now a GPUTexture&, not a Texture&
         auto loadTex = [&](const std::string& path, uint32_t fallbackColor, GPUTexture& outTex)
         {
             Texture tex;
@@ -104,11 +103,10 @@ namespace Elysian
 
             if (vkCreateSampler(m_Context->GetDevice(), &samplerInfo, nullptr, &outTex.sampler) != VK_SUCCESS)
             {
-                throw std::runtime_error("failed to create texture sampler!");
+                throw std::runtime_error("Failed to create texture sampler");
             }
         };
 
-        // Load both Albedo and Normal (0xFFFF8080 = Flat Normal Map Fallback)
         loadTex("../../../Assets/Textures/sofa_diffuse.png", 0xFFFFFFFF, m_DefaultTexture);
         loadTex("../../../Assets/Textures/sofa_normal.png", 0xFFFF8080, m_DefaultNormal);
     }
@@ -136,7 +134,7 @@ namespace Elysian
         // Storage Buffer for Model Matrices
         VkDescriptorSetLayoutBinding modelBufferBinding{};
         modelBufferBinding.binding = 3;
-        modelBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; // Use Storage for large arrays
+        modelBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; // Use type storage for large arrays
         modelBufferBinding.descriptorCount = 1;
         modelBufferBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
@@ -205,7 +203,7 @@ namespace Elysian
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(m_MaxFramesInFlight);
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(m_MaxFramesInFlight * 2); // albedo + normal
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(m_MaxFramesInFlight * 2);
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         poolSizes[2].descriptorCount = static_cast<uint32_t>(m_MaxFramesInFlight);
 
@@ -220,7 +218,7 @@ namespace Elysian
             throw std::runtime_error("Failed to create mesh descriptor pool");
         }
 
-        // --- Create the model buffers (one per frame) ---
+        // Create the model buffers
         m_ModelBuffers.resize(m_MaxFramesInFlight);
         VkDeviceSize bufferSize = MAX_ENTITIES * sizeof(glm::mat4);
         for (int i = 0; i < m_MaxFramesInFlight; i++)
@@ -251,7 +249,7 @@ namespace Elysian
             VkDescriptorBufferInfo uboInfo{};
             uboInfo.buffer = m_UniformBuffers[i].buffer;
             uboInfo.offset = 0;
-            uboInfo.range = sizeof(glm::mat4) * 2; // view + proj
+            uboInfo.range = sizeof(glm::mat4) * 2;
 
             // Albedo image info
             VkDescriptorImageInfo albedoInfo{};
@@ -265,7 +263,7 @@ namespace Elysian
             normalInfo.imageView = m_DefaultNormal.view;
             normalInfo.sampler = m_DefaultNormal.sampler;
 
-            // --- NEW: Model buffer info ---
+            // Model buffer info
             VkDescriptorBufferInfo modelBufferInfo{};
             modelBufferInfo.buffer = m_ModelBuffers[i].buffer;
             modelBufferInfo.offset = 0;
@@ -293,7 +291,6 @@ namespace Elysian
             descriptorWrites[2].descriptorCount = 1;
             descriptorWrites[2].pImageInfo = &normalInfo;
 
-            // --- NEW: Write model buffer binding ---
             descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[3].dstSet = m_MeshDescriptorSets[i];
             descriptorWrites[3].dstBinding = 3;
@@ -337,10 +334,9 @@ namespace Elysian
             throw std::runtime_error("Failed to create light descriptor set layout: " + std::to_string(layoutResult));
         }
 
-        // Create a descriptor pool that can hold enough sets
         VkDescriptorPoolSize poolSize{};
         poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = m_MaxFramesInFlight; // one per frame
+        poolSize.descriptorCount = m_MaxFramesInFlight;
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -355,8 +351,7 @@ namespace Elysian
             throw std::runtime_error("Failed to create light descriptor pool: " + std::to_string(poolResult));
         }
 
-        // Resize the vector and allocate per-frame descriptor sets
-        m_LightDescriptorSets.resize(m_MaxFramesInFlight); // <-- CRITICAL
+        m_LightDescriptorSets.resize(m_MaxFramesInFlight);
 
         for (int i = 0; i < m_MaxFramesInFlight; i++)
         {
@@ -414,7 +409,9 @@ namespace Elysian
     {
         if (models.size() > MAX_ENTITIES)
         {
-            throw std::runtime_error("Too many entities for model buffer! Increase MAX_ENTITIES.");
+            std::ostringstream oss;
+            oss << "Too many entities for model buffer, Increase MAX_ENTITIES (Currently:" << MAX_ENTITIES << " )";
+            throw std::runtime_error(oss.str());
         }
 
         void* data = m_ModelBuffers[frameIndex].mapped;
@@ -423,7 +420,7 @@ namespace Elysian
 
     void MeshRenderer::BuildMegaBuffers(Scene* scene)
     {
-        // 1. Iterate ALL entities with a MeshComponent and collect their data
+        // Iterate ALL entities with a MeshComponent and collect their data
         std::vector<Vertex> allVertices;
         std::vector<uint32_t> allIndices;
         
@@ -453,14 +450,14 @@ namespace Elysian
             }
         }
 
-        // 2. If there are NO meshes, just bail out (or create a dummy triangle)
+        // If there are now meshes output warning
         if (allVertices.empty())
         {
             std::cerr << "Warning: No meshes found in scene!" << std::endl;
             return;
         }
 
-        // 3. Create the VERTEX buffer
+        // Create the vertex buffer
         VkDeviceSize vSize = sizeof(Vertex) * allVertices.size();
         Buffer vStaging;
         vStaging.Create(m_Context, vSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -488,10 +485,9 @@ namespace Elysian
         m_Context->CopyBuffer(iStaging.buffer, m_IndexBuffer.buffer, iSize);
         iStaging.Destroy(m_Context);
 
-        // 5. Store total count for safety (not strictly needed for drawing anymore)
+        // Store total count
         m_IndexCount = static_cast<uint32_t>(allIndices.size());
 
-        std::cout << "[MeshRenderer] Merged " << allVertices.size() << " vertices and "
-            << allIndices.size() << " indices from " << view.size() << " meshes." << std::endl;
+        std::cout << "[MeshRenderer] Merged " << allVertices.size() << " vertices and " << allIndices.size() << " indices from " << view.size() << " meshes." << std::endl;
     }
 }

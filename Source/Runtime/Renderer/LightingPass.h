@@ -12,7 +12,6 @@ namespace Elysian
         void Init(VulkanContext* context, GBuffer* gbuffer, VkRenderPass swapchainRenderPass);
         void Cleanup();
 
-        // Records the fullscreen draw. Assumes both descriptor sets are already bound.
         void Record(VkCommandBuffer cmdBuffer);
 
         VkPipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }

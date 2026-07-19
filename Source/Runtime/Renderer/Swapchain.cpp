@@ -79,7 +79,7 @@ namespace Elysian
         info.clipped = VK_TRUE;
 
         if (vkCreateSwapchainKHR(m_Context->GetDevice(), &info, nullptr, &m_SwapChain) != VK_SUCCESS)
-            throw std::runtime_error("failed to create swap chain!");
+            throw std::runtime_error("Failed to create swap chain");
 
         vkGetSwapchainImagesKHR(m_Context->GetDevice(), m_SwapChain, &imgCount, nullptr);
         m_SwapChainImages.resize(imgCount);
@@ -105,11 +105,10 @@ namespace Elysian
     void Swapchain::CreateDepthResources()
     {
         VkFormat depthFormat = FindDepthFormat();
-        // Use VMA version
         m_Context->CreateImageVMA(m_SwapChainExtent.width, m_SwapChainExtent.height, depthFormat,
                                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                                   VMA_MEMORY_USAGE_GPU_ONLY,
-                                  m_DepthImage, m_DepthImageAllocation); // changed variable name
+                                  m_DepthImage, m_DepthImageAllocation);
 
         VkImageViewCreateInfo info{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         info.image = m_DepthImage;
@@ -223,7 +222,7 @@ namespace Elysian
             else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) return
                 format;
         }
-        throw std::runtime_error("failed to find supported format!");
+        throw std::runtime_error("Failed to find supported format");
     }
 
     VkFormat Swapchain::FindDepthFormat()

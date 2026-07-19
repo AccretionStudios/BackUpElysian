@@ -100,7 +100,7 @@ namespace Elysian
         ui->BeginFrame();
         ui->DrawWindows(scene, swapchain, 0.016f);
 
-        // ========== BUILD LIGHT UBO FROM ECS ==========
+        // Build light uniform buffer object from ECS
         LightUBO lightUBO = {};
         lightUBO.ambientStrength = scene->m_AmbientStrength;
 
@@ -118,8 +118,6 @@ namespace Elysian
                 {
                     if (dirCount == 0)
                     {
-                        // only first directional light used
-                        // direction = forward vector from rotation
                         glm::mat4 rotMat = glm::rotate(glm::mat4(1.0f), glm::radians(transform.Rotation.y),
                                                        glm::vec3(0, 1, 0));
                         rotMat = glm::rotate(rotMat, glm::radians(transform.Rotation.x), glm::vec3(1, 0, 0));
@@ -148,7 +146,6 @@ namespace Elysian
                 {
                     if (spotCount < 4)
                     {
-                        // direction from rotation
                         glm::mat4 rotMat = glm::rotate(glm::mat4(1.0f), glm::radians(transform.Rotation.y),
                                                        glm::vec3(0, 1, 0));
                         rotMat = glm::rotate(rotMat, glm::radians(transform.Rotation.x), glm::vec3(1, 0, 0));
@@ -186,7 +183,7 @@ namespace Elysian
         vkBeginCommandBuffer(m_CommandBuffers[m_CurrentFrame], &beginInfo);
 
 
-        // ========== Geometry pass ==========
+        // Geometry pass
         {
             std::array<VkImageView, 4> attachments = {
                 m_GBuffer.GetImageViews()[0], m_GBuffer.GetImageViews()[1],
@@ -251,7 +248,7 @@ namespace Elysian
                 drawCommands.push_back(cmd);
             }
 
-            // --- Upload ALL model matrices to GPU in one go ---
+            // Upload all model matrices to GPU in one go
             m_MeshRenderer.UpdateModelBuffer(m_CurrentFrame, modelMatrices);
 
             // Sort draw commands
@@ -262,18 +259,18 @@ namespace Elysian
                           return a.depth < b.depth;
                       });
 
-            // --- Bind vertex/index buffers (unchanged) ---
+            // Bind vertex/index buffers
             VkBuffer vertexBuffers[] = { m_MeshRenderer.GetVertexBuffer() };
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(m_CommandBuffers[m_CurrentFrame], 0, 1, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(m_CommandBuffers[m_CurrentFrame], m_MeshRenderer.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-            // --- State cache ---
+            // State cache
             VkPipeline lastPipeline = VK_NULL_HANDLE;
             VkDescriptorSet lastDescriptorSet = VK_NULL_HANDLE;
             VkPipelineLayout pipelineLayout = m_GeometryPass.GetPipelineLayout();
 
-            // --- Loop through sorted commands ---
+            // Loop through sorted commands
             for (const auto& cmd : drawCommands)
             {
                 // Bind Pipeline only if changed
@@ -320,11 +317,10 @@ namespace Elysian
                                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GridPushConstants),
                                &pcs);
 
-            // Draw 1 Quad (6 Vertices) procedurally
             vkCmdDraw(m_CommandBuffers[m_CurrentFrame], 6, 1, 0, 0);
         }
 
-        // ========== Lighting pass ==========
+        // Lighting pass
         {
             VkRenderPassBeginInfo rpInfo = {
                 VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, nullptr, m_HdrRenderPass, m_HdrFramebuffer,
@@ -353,7 +349,7 @@ namespace Elysian
             vkCmdEndRenderPass(m_CommandBuffers[m_CurrentFrame]);
         }
 
-        // ========== Present pass ==========
+        // Present pass
         {
             VkRenderPassBeginInfo rpInfo = {
                 VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, nullptr, swapchain->GetRenderPass(),
@@ -800,7 +796,7 @@ namespace Elysian
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_NONE; // Important for full-screen quad rendering
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
         VkPipelineMultisampleStateCreateInfo multisampling{};
@@ -810,14 +806,13 @@ namespace Elysian
 
         VkPipelineDepthStencilStateCreateInfo depthStencil{};
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE; // Respect scene geometry depth
-        depthStencil.depthWriteEnable = VK_FALSE; // Grid is translucent, don't occlude other transparents
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_FALSE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
-        // Custom Blend Attachments configured to map safely over the GBuffer Layout
         std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachments{};
 
-        // 0: Albedo -> Apply Alpha Blending
+        // 0: Albedo
         blendAttachments[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         blendAttachments[0].blendEnable = VK_TRUE;
@@ -828,11 +823,11 @@ namespace Elysian
         blendAttachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         blendAttachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
 
-        // 1: Normal -> Disable writing to not screw up G-Buffer deferred lighting
+        // 1: Normal (Disable writing to not effect G-Buffer deferred lighting)
         blendAttachments[1].colorWriteMask = 0;
         blendAttachments[1].blendEnable = VK_FALSE;
 
-        // 2: WorldPos -> Disable writing
+        // 2: WorldPos (Disable writing)
         blendAttachments[2].colorWriteMask = 0;
         blendAttachments[2].blendEnable = VK_FALSE;
 
@@ -882,7 +877,6 @@ namespace Elysian
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = m_GridPipelineLayout;
 
-        // Using GBuffer RenderPass seamlessly!
         pipelineInfo.renderPass = m_GBuffer.GetRenderPass();
         pipelineInfo.subpass = 0;
 

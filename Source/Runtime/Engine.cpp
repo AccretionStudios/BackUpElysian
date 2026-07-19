@@ -62,7 +62,6 @@ namespace Elysian
     void Engine::RecreateSwapchainAndRenderer()
     {
         vkDeviceWaitIdle(m_Context.GetDevice());
-        // Clean up UI and Renderer swapchain dependencies
         m_Swapchain.Recreate();
         m_Renderer.RecreateResolutionDependentResources(&m_Swapchain);
     }

@@ -5,8 +5,7 @@
 
 namespace Elysian
 {
-    Camera::Camera(glm::vec3 position)
-        : Position(position), WorldUp(glm::vec3(0.0f, 1.0f, 0.0f)), m_LastX(640), m_LastY(360)
+    Camera::Camera(glm::vec3 position) : Position(position), WorldUp(glm::vec3(0.0f, 1.0f, 0.0f)), m_LastX(640), m_LastY(360)
     {
         UpdateCameraVectors();
     }
@@ -17,8 +16,7 @@ namespace Elysian
         float velocity = MovementSpeed * deltaTime;
 
         // Detect Alt key
-        bool altPressed = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||
-            glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
+        bool altPressed = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
 
         // Mouse buttons
         bool lmbPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
@@ -42,12 +40,11 @@ namespace Elysian
             m_LastX = xpos;
             m_LastY = ypos;
 
-            // ORBIT (Alt + LMB) – pivot is set ONCE and locked
+            // Orbit (Alt + LMB)
             if (altPressed && lmbPressed)
             {
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-                // Only set pivot once per orbit session (until both Alt+LMB are released)
                 if (!m_OrbitPivotLocked)
                 {
                     m_OrbitPivot = Position + Forward * 5.0f;
@@ -72,7 +69,7 @@ namespace Elysian
                 UpdateOrbitPosition();
                 UpdateCameraVectors();
             }
-            // DOLLY (Alt + RMB)
+            // Camera dolly (Alt + RMB)
             else if (altPressed && rmbPressed)
             {
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -92,11 +89,10 @@ namespace Elysian
                 }
                 else
                 {
-                    // Normal dolly: move camera along Forward
                     Position += Forward * delta;
                 }
             }
-            // REGULAR LOOK (RMB only, no Alt)
+            // Regular look (RMB only, no Alt)
             else if (rmbPressed && !altPressed)
             {
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -131,7 +127,7 @@ namespace Elysian
             }
         }
 
-        // KEYBOARD INPUTS
+        // Keyboard inputs
         bool allowMovement = rmbPressed && !altPressed && !m_OrbitPivotLocked;
         if (allowMovement)
         {
@@ -143,7 +139,7 @@ namespace Elysian
             if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) Position += WorldUp * velocity;
         }
 
-        // GAMEPAD INPUTS
+        // Gamepad inputs (Untested)
         if (!m_OrbitPivotLocked && !altPressed)
         {
             GLFWgamepadstate state;
@@ -183,7 +179,7 @@ namespace Elysian
     {
         if (m_OrbitPivotLocked)
         {
-            // Scroll while orbiting changes radius – pivot stays absolutely fixed
+            // Scroll while orbiting changes radius, and pivot stays absolutely fixed
             m_OrbitRadius -= yoffset * ScrollSensitivity;
             if (m_OrbitRadius < 0.1f) m_OrbitRadius = 0.1f;
             UpdateOrbitPosition();
@@ -191,7 +187,6 @@ namespace Elysian
         }
         else
         {
-            // Normal scroll: move camera forward/back
             Position += Forward * yoffset * ScrollSensitivity;
         }
     }

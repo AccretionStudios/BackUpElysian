@@ -100,7 +100,7 @@ namespace Elysian
         dynamicState.dynamicStateCount = 2;
         dynamicState.pDynamicStates = dynamicStates;
 
-        // Descriptor set layout (set=0) for UBO (view and proj)
+        // Descriptor set layout for UBO (view and proj)
         VkDescriptorSetLayout layouts[] = {meshDescriptorSetLayout};
 
         // Push constant range for model matrix
@@ -159,8 +159,7 @@ namespace Elysian
                                 0, nullptr);
 
         // Push model matrix
-        vkCmdPushConstants(cmdBuffer, m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4),
-                           glm::value_ptr(model));
+        vkCmdPushConstants(cmdBuffer, m_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), glm::value_ptr(model));
 
         VkBuffer vertexBuffers[] = {vertexBuffer};
         VkDeviceSize offsets[] = {0};

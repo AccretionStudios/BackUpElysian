@@ -79,12 +79,9 @@ namespace Elysian
 
     void DebugUI::DrawWindows(Scene* scene, Swapchain* swapchain, float deltaTime)
     {
-        // --------------------------------------------------------------------
-        // 1. ENTITIES WINDOW (List + Gizmo Controls + Transform Editor)
-        // --------------------------------------------------------------------
+        // Entities window
         ImGui::Begin("Entities");
 
-        // ---- Entity List ----
         ImGui::Text("Entity List");
         ImGui::BeginChild("EntityListChild", ImVec2(0, 120), true);
         auto entityView = scene->m_ECSManager.GetRegistry().view<TransformComponent>();
@@ -99,7 +96,6 @@ namespace Elysian
         }
         ImGui::EndChild();
 
-        // ---- Gizmo Controls (only if an entity is selected) ----
         if (m_SelectedEntity != entt::null && scene->m_ECSManager.HasComponent<TransformComponent>(m_SelectedEntity))
         {
             ImGui::Separator();
@@ -122,7 +118,6 @@ namespace Elysian
                 else if (m_GizmoOperation == 2) ImGui::DragFloat("Snap Scale", &snapScale, 0.05f);
             }
 
-            // ---- ImGuizmo manipulation (hidden UI, but still runs) ----
             auto& transform = scene->m_ECSManager.GetComponent<TransformComponent>(m_SelectedEntity);
             ImGuizmo::OPERATION activeOp = (m_GizmoOperation == 0)
                                                ? ImGuizmo::TRANSLATE
@@ -177,7 +172,6 @@ namespace Elysian
                 }
             }
 
-            // ---- Transform Editor (sliders) ----
             ImGui::Separator();
             ImGui::Text("Transform Editor");
             ImGui::DragFloat3("Position", glm::value_ptr(transform.Position), 0.05f);
@@ -193,9 +187,7 @@ namespace Elysian
 
         ImGui::End();
 
-        // --------------------------------------------------------------------
-        // 2. LIGHTS WINDOW (List + Light Editor) – unchanged
-        // --------------------------------------------------------------------
+        // Lights window
         ImGui::Begin("Lights");
         ImGui::Text("Light List");
         ImGui::BeginChild("LightListChild", ImVec2(0, 120), true);
@@ -245,7 +237,7 @@ namespace Elysian
                 if (light.innerAngle > light.outerAngle)
                     light.innerAngle = light.outerAngle;
             }
-            // Ambient Strength – only for directional light (UI only for now)
+            // Ambient Strength for directional light
             if (light.type == LightType::Directional)
             {
                 ImGui::DragFloat("Ambient Strength", &scene->m_AmbientStrength, 0.005f, 0.0f, 1.0f);
@@ -280,9 +272,7 @@ namespace Elysian
         }
         ImGui::End();
 
-        // --------------------------------------------------------------------
-        // 3. Camera Window (unchanged)
-        // --------------------------------------------------------------------
+        // Camera Window
         ImGui::Begin("Camera");
         ImGui::SliderFloat("Field of View", &scene->m_Camera.FieldOfView, 30.0f, 120.0f);
         ImGui::Separator();
@@ -305,9 +295,7 @@ namespace Elysian
         }
         ImGui::End();
 
-        // --------------------------------------------------------------------
-        // 4. Performance Profiler (unchanged)
-        // --------------------------------------------------------------------
+        // Performance Profiler
         ImGui::Begin("Performance Profiler");
         float currentFps = ImGui::GetIO().Framerate;
         m_AvgFps = m_AvgFps + (currentFps - m_AvgFps) * 0.05f;
@@ -325,9 +313,7 @@ namespace Elysian
                          m_MaxFrameTime * 1.2f, ImVec2(0, 80));
         ImGui::End();
 
-        // --------------------------------------------------------------------
-        // 5. DEBUG OVERLAYS (Point + Spot Lights from ECS)
-        // --------------------------------------------------------------------
+        // Debug overlays for lights
         ImDrawList* drawList = ImGui::GetForegroundDrawList();
         ImVec2 screenSize = ImGui::GetIO().DisplaySize;
         glm::mat4 view = scene->m_Camera.GetViewMatrix();

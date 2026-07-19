@@ -7,11 +7,12 @@
 
 namespace Elysian
 {
+    // Custom mesh format header 
 #pragma pack(push, 1)
     struct VMSHHeader
     {
         char magic[4];
-        uint32_t version; // Currently 1
+        uint32_t version;
         uint32_t vertexCount;
         uint32_t indexCount;
     };
@@ -20,6 +21,7 @@ namespace Elysian
     class Mesh
     {
     public:
+        //Exposed mesh loader function
         bool LoadFromFile(const std::string& filename);
 
         const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
@@ -35,6 +37,7 @@ namespace Elysian
         bool LoadEMSH(const std::string& filename);
         bool SaveEMSH(const std::string& filename);
 
+        // Import source meshes
         bool ImportOBJ(const std::string& filename);
         bool ImportFBX(const std::string& filename);
         bool ImportGLTF(const std::string& filename);

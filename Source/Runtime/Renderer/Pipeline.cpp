@@ -55,9 +55,6 @@ namespace Elysian
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        // FIX: frontFace is set statically. VK_DYNAMIC_STATE_FRONT_FACE was removed —
-        // it requires VK_EXT_extended_dynamic_state or Vulkan 1.3, neither of which is
-        // enabled. Using unsupported dynamic states corrupts NVIDIA driver internal state.
         rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
         VkPipelineMultisampleStateCreateInfo multisampling{};
@@ -89,7 +86,6 @@ namespace Elysian
         colorBlending.blendConstants[2] = 0.0f;
         colorBlending.blendConstants[3] = 0.0f;
 
-        // FIX: VK_DYNAMIC_STATE_FRONT_FACE removed (see rasterizer comment above).
         std::vector<VkDynamicState> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR

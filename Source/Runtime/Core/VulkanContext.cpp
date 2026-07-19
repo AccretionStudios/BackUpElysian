@@ -41,13 +41,13 @@ namespace Elysian
         createInfo.ppEnabledExtensionNames = glfwExtensions;
 
         if (vkCreateInstance(&createInfo, nullptr, &m_Instance) != VK_SUCCESS)
-            throw std::runtime_error("failed to create instance!");
+            throw std::runtime_error("Failed to create instance");
     }
 
     void VulkanContext::CreateSurface(Window* window)
     {
         if (glfwCreateWindowSurface(m_Instance, window->GetNativeWindow(), nullptr, &m_Surface) != VK_SUCCESS)
-            throw std::runtime_error("failed to create window surface!");
+            throw std::runtime_error("Failed to create window surface");
     }
 
     void VulkanContext::PickPhysicalDevice()
@@ -66,7 +66,7 @@ namespace Elysian
                 break;
             }
         }
-        if (m_PhysicalDevice == VK_NULL_HANDLE) throw std::runtime_error("failed to find suitable GPU!");
+        if (m_PhysicalDevice == VK_NULL_HANDLE) throw std::runtime_error("Failed to find suitable GPU");
     }
 
     void VulkanContext::CreateLogicalDevice()
@@ -86,7 +86,7 @@ namespace Elysian
         }
 
         VkPhysicalDeviceFeatures deviceFeatures{};
-        // Enable sampler anisotropy for high-quality textures!
+        // Sampler anisotropy for high-quality textures
         deviceFeatures.samplerAnisotropy = VK_TRUE;
 
         VkDeviceCreateInfo createInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
@@ -97,7 +97,7 @@ namespace Elysian
         createInfo.pEnabledFeatures = &deviceFeatures;
 
         if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device) != VK_SUCCESS)
-            throw std::runtime_error("failed to create logical device!");
+            throw std::runtime_error("Failed to create logical device");
 
         vkGetDeviceQueue(m_Device, qIndices.graphicsFamily.value(), 0, &m_GraphicsQueue);
         vkGetDeviceQueue(m_Device, qIndices.presentFamily.value(), 0, &m_PresentQueue);
@@ -122,7 +122,7 @@ namespace Elysian
 
         if (vmaCreateAllocator(&allocatorInfo, &m_Allocator) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create VMA allocator!");
+            throw std::runtime_error("Failed to create VMA allocator");
         }
     }
 
@@ -166,7 +166,7 @@ namespace Elysian
             if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
                 return i;
         }
-        throw std::runtime_error("failed to find suitable memory type!");
+        throw std::runtime_error("Failed to find suitable memory type");
     }
 
     void VulkanContext::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
@@ -222,13 +222,9 @@ namespace Elysian
 
         if (vmaCreateImage(m_Allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create image with VMA!");
+            throw std::runtime_error("Failed to create image with VMA");
         }
     }
-
-    // =================================================================================
-    // NEW GPU TRANSFER UTILITIES
-    // =================================================================================
 
     VkCommandBuffer VulkanContext::BeginSingleTimeCommands()
     {
@@ -308,7 +304,7 @@ namespace Elysian
         }
         else
         {
-            throw std::invalid_argument("unsupported layout transition!");
+            throw std::invalid_argument("Unsupported layout transition");
         }
 
         vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
@@ -350,7 +346,7 @@ namespace Elysian
         VkImageView imageView;
         if (vkCreateImageView(m_Device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create texture image view!");
+            throw std::runtime_error("Failed to create texture image view");
         }
         return imageView;
     }

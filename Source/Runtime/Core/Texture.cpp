@@ -57,8 +57,7 @@ namespace Elysian
 
     bool Texture::ImportRawImage(const std::string& filename)
     {
-        // We force STBI_rgb_alpha (4 channels) so Vulkan always gets a consistent RGBA format
-        stbi_set_flip_vertically_on_load(false); // Vulkan 0,0 is top-left, but many 3D formats expect bottom-left
+        stbi_set_flip_vertically_on_load(false);
 
         unsigned char* stbiPixels = stbi_load(filename.c_str(), &m_Width, &m_Height, &m_Channels, STBI_rgb_alpha);
 
@@ -68,10 +67,9 @@ namespace Elysian
             return false;
         }
 
-        m_Channels = 4; // Because we forced STBI_rgb_alpha
+        m_Channels = 4;
         uint32_t dataSize = m_Width * m_Height * m_Channels;
 
-        // Copy STB memory into our own managed memory so we can safely free STB
         FreeMemory();
         m_Pixels = new unsigned char[dataSize];
         memcpy(m_Pixels, stbiPixels, dataSize);
@@ -112,10 +110,9 @@ namespace Elysian
         VTEXHeader header;
         file.read(reinterpret_cast<char*>(&header), sizeof(VTEXHeader));
 
-        // Security Check: Is this actually a Elysian Texture?
         if (strncmp(header.magic, "ETEX", 4) != 0)
         {
-            std::cerr << "[Asset Pipeline] Error: Invalid magic number. Not a ETEX file!" << std::endl;
+            std::cerr << "[Asset Pipeline] Error: Not a ETEX file!" << std::endl;
             return false;
         }
 
@@ -127,8 +124,7 @@ namespace Elysian
         m_Pixels = new unsigned char[header.dataSize];
         file.read(reinterpret_cast<char*>(m_Pixels), header.dataSize);
 
-        std::cout << "[Asset Pipeline] Loaded ETEX: " << m_Width << "x" << m_Height << " (" << m_Channels <<
-            " channels)" << std::endl;
+        std::cout << "[Asset Pipeline] Loaded ETEX: " << m_Width << "x" << m_Height << " (" << m_Channels << " channels)" << std::endl;
         return true;
     }
 }

@@ -6,7 +6,7 @@
 
 namespace Elysian
 {
-
+    // Custom texture format header 
 #pragma pack(push, 1)
     struct VTEXHeader
     {

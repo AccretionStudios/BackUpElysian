@@ -30,7 +30,7 @@ namespace Elysian
         dirLightComp.color = glm::vec3(1.0f);
         dirLightComp.intensity = 1.0f;
         auto& dirLightTrans = m_ECSManager.GetComponent<TransformComponent>(dirLight);
-        dirLightTrans.Rotation = glm::vec3(60.0f, -120.0f, 0.0f); // direction = forward vector from rotation
+        dirLightTrans.Rotation = glm::vec3(60.0f, -120.0f, 0.0f);
         
         auto pointLight1 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(pointLight1);
@@ -66,7 +66,7 @@ namespace Elysian
         sl1Comp.outerAngle = glm::radians(20.0f);
         auto& sl1Trans = m_ECSManager.GetComponent<TransformComponent>(spotLight1);
         sl1Trans.Position = glm::vec3(3.0f, 2.0f, 1.0f);
-        sl1Trans.Rotation = glm::vec3(0.0f, -45.0f, 0.0f); // direction
+        sl1Trans.Rotation = glm::vec3(0.0f, -45.0f, 0.0f); // Direction
 
         auto spotLight2 = m_ECSManager.CreateEntity();
         m_ECSManager.AddComponent<TransformComponent>(spotLight2);
@@ -82,6 +82,6 @@ namespace Elysian
         sl2Trans.Position = glm::vec3(-1.0f, 2.5f, -2.0f);
         sl2Trans.Rotation = glm::vec3(0.0f, 30.0f, 0.0f);
 
-        std::cout << "Initialized scene with mesh entities and light entities." << std::endl;
+        std::cout << "Initialized scene with mesh entities and light entities" << std::endl;
     }
 }

@@ -131,18 +131,6 @@ namespace Elysian
         subpass.pColorAttachments = colorRefs.data();
         subpass.pDepthStencilAttachment = &depthRef;
 
-        // FIX: Two subpass dependencies are required, not one.
-        //
-        // dependencies[0] — ENTRY (EXTERNAL → subpass 0):
-        //   Ensures that any previous fragment shader reads of these images (from prior
-        //   frames) have completed before we start writing to the color attachments again.
-        //
-        // dependencies[1] — EXIT (subpass 0 → EXTERNAL):
-        //   This was missing entirely. Without it there is no guarantee that the geometry
-        //   pass's color attachment writes are visible to the lighting pass's fragment
-        //   shader reads. The result is a GPU-level read-after-write hazard: the lighting
-        //   pass may sample stale or undefined GBuffer data, causing rendering corruption
-        //   or a GPU TDR crash.
         std::array<VkSubpassDependency, 2> dependencies = {};
 
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;

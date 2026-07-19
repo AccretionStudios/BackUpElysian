@@ -25,7 +25,6 @@ namespace Elysian
     {
         VkDevice device = m_Context->GetDevice();
 
-        // Load shaders
         std::string vertPath = "../../../Assets/Shaders/lighting_vert.spv";
         std::string fragPath = "../../../Assets/Shaders/lighting_frag.spv";
 
@@ -51,7 +50,6 @@ namespace Elysian
 
         VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
 
-        // No vertex input – fullscreen triangle
         VkPipelineVertexInputStateCreateInfo vertexInput = {};
         vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertexInput.vertexBindingDescriptionCount = 0;
@@ -98,7 +96,6 @@ namespace Elysian
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
-        // Descriptor set layout for G-buffer textures (set = 0
         VkDescriptorSetLayoutBinding gbufferBindings[3] = {};
         for (int i = 0; i < 3; ++i)
         {
@@ -114,7 +111,7 @@ namespace Elysian
         if (vkCreateDescriptorSetLayout(device, &gbufferLayoutInfo, nullptr, &m_GBufferDescLayout) != VK_SUCCESS)
             throw std::runtime_error("Failed to create G-buffer descriptor set layout");
 
-        // Descriptor set layout for light UBO (set = 1)
+        // Descriptor set layout for light UBO
         VkDescriptorSetLayoutBinding lightBinding = {};
         lightBinding.binding = 0;
         lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -159,13 +156,13 @@ namespace Elysian
         vkDestroyShaderModule(device, fragModule, nullptr);
         vkDestroyShaderModule(device, vertModule, nullptr);
 
-        std::cout << "Lighting pipeline created successfully." << std::endl;
+        std::cout << "Lighting pipeline created successfully" << std::endl;
     }
 
     void LightingPass::Record(VkCommandBuffer cmdBuffer)
     {
         // Bind the pipeline. Descriptor sets must be bound externally (Engine already does).
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
-        vkCmdDraw(cmdBuffer, 3, 1, 0, 0); // fullscreen triangle
+        vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
     }
 }

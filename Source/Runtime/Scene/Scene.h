@@ -17,7 +17,6 @@ namespace Elysian
 
         ECSManager m_ECSManager;
 
-        // Light data removed – now in ECS
         float m_AmbientStrength = 0.1f;
 
         entt::entity GetMainEntity() const { return m_MainEntity; }

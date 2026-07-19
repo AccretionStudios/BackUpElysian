@@ -18,6 +18,7 @@
 
 namespace Elysian
 {
+    // Load from file
     bool Mesh::LoadFromFile(const std::string& filename)
     {
         std::string ext = filename.substr(filename.find_last_of('.') + 1);
@@ -48,7 +49,7 @@ namespace Elysian
 
         if (imported)
         {
-            // --- NEW: UNIVERSAL TANGENT GENERATOR ---
+            // Universal tanget generator
             for (auto& v : m_Vertices) v.tangent = glm::vec3(0.0f);
 
             for (size_t i = 0; i < m_Indices.size(); i += 3)
@@ -96,6 +97,7 @@ namespace Elysian
         return false;
     }
 
+    // Save too compiled mesh file
     bool Mesh::SaveEMSH(const std::string& filename)
     {
         std::ofstream file(filename, std::ios::binary);
@@ -117,6 +119,7 @@ namespace Elysian
         return true;
     }
 
+    // Load compiled mesh file
     bool Mesh::LoadEMSH(const std::string& filename)
     {
         std::ifstream file(filename, std::ios::binary);
@@ -127,9 +130,8 @@ namespace Elysian
 
         if (strncmp(header.magic, "EMSH", 4) != 0) return false;
 
-        if (header.version != 1)
+        if (header.version != 1) // TODO: Update mesh version system
         {
-            // <--- REQUIRES VERSION 3
             std::cout << "[Asset Pipeline] Outdated EMSH version detected. Recompiling..." << std::endl;
             return false;
         }
@@ -144,6 +146,7 @@ namespace Elysian
         return true;
     }
 
+    // Source mesh importers
     bool Mesh::ImportOBJ(const std::string& filename)
     {
         tinyobj::attrib_t attrib;
@@ -172,7 +175,6 @@ namespace Elysian
                     v.pos = glm::vec3(attrib.vertices[3 * vi + 0], attrib.vertices[3 * vi + 1],
                                       attrib.vertices[3 * vi + 2]);
 
-                    // FIX: Pure white default color
                     v.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
                     if (ni >= 0 && ni * 3 + 2 < attrib.normals.size())
@@ -252,7 +254,6 @@ namespace Elysian
                         v.pos = glm::vec3(mesh->vertices.data[pos_idx].x, mesh->vertices.data[pos_idx].y,
                                           mesh->vertices.data[pos_idx].z);
 
-                        // FIX: Pure white default color to stop the rainbow effect!
                         v.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
                         if (mesh->vertex_normal.exists)
@@ -338,10 +339,9 @@ namespace Elysian
             normStride = normAccessor.ByteStride(normView);
         }
 
-        // --- FIXED: Safe UV Extraction with Component Type ---
         const uint8_t* uvData = nullptr;
         int uvStride = 0;
-        int uvComponentType = TINYGLTF_COMPONENT_TYPE_FLOAT; // Default
+        int uvComponentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
         if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end())
         {
             auto& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
@@ -349,7 +349,7 @@ namespace Elysian
             auto& uvBuffer = model.buffers[uvView.buffer];
             uvData = &uvBuffer.data[uvView.byteOffset + uvAccessor.byteOffset];
             uvStride = uvAccessor.ByteStride(uvView);
-            uvComponentType = uvAccessor.componentType; // Save the type!
+            uvComponentType = uvAccessor.componentType;
         }
 
         std::vector<Vertex> tempVertices(posAccessor.count);
@@ -369,7 +369,6 @@ namespace Elysian
                 tempVertices[i].normal = glm::vec3(0, 1, 0);
             }
 
-            // --- FIXED: Properly Decode Short/Byte UVs to prevent NaN vanishing ---
             if (uvData)
             {
                 float u = 0.0f, v = 0.0f;
